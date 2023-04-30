@@ -2,6 +2,8 @@ import { useTheme, ThemeProvider } from 'next-themes';
 import Head from 'next/head';
 import { MountainIcon, VolcanoIcon } from '@/assets/images';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import Filter from 'bad-words';
+import Loader from "react-loader-spinner";
 import ToggleButton from '@/components/ToggleButton';
 import { NextRouter, useRouter } from 'next/router';
 import Metrics from '@/pages/race-me/components/metrics';
@@ -10,14 +12,24 @@ import { useIsSm } from '@/pages/race-me/hooks/use-media-query';
 import StartButton from '@/pages/race-me/components/body-race/start-button';
 import useBodyKeyPress from '@/pages/race-me/hooks/use-body-key-press';
 import useKeyPress from '@/pages/race-me/hooks/use-key-press';
-import Script from 'next/script';
+import { app, db } from '@/services/firebase';
+import { doc, getDoc, updateDoc, onSnapshot } from 'firebase/firestore';
+import { Functions, getFunctions, httpsCallable } from 'firebase/functions';
+import MyResponsiveLine from '@/components/LineGraph';
+
+const cloudFunctions: Functions = getFunctions(app);
+
+type LeadershipModel = {
+    user: any;
+    adjusted_wpm: number;
+};
 
 const HomeBody = () => {
     const isSm = useIsSm();
 
     const [isBodyRace, setIsBodyRace] = useState<boolean>(false);
     const [loading, setLoading] = useState<boolean>(false);
-    const [wpm, setWpm] = useState<number>(0);
+    const [wpm, setWpm] = useState<string>(0);
     const [seconds, setTime] = useState<number>(30);
     const [currBodyRaceChar, setCurrBodyRaceChar] = useState<string | undefined>(undefined);
 
@@ -25,6 +37,7 @@ const HomeBody = () => {
     const [outgoingChars, setOutgoingChars] = useState<string>(''); // characters just typed
     const [incorrectChar, setIncorrectChar] = useState<boolean>(false);
     const [corpus, setCorpus] = useState<string>('');
+    const [corpusId, _setCorpusId] = useState(Math.floor(Math.random() * 3) + 1);
     const [currentChar, setCurrentChar] = useState<string>(corpus.charAt(0));
     const [incomingChars, setIncomingChars] = useState(corpus.substr(1)); // next chars to type
     const [startTime, setStartTime] = useState<number>(0);
@@ -32,8 +45,21 @@ const HomeBody = () => {
     const [charCount, setCharCount] = useState<number>(0);
     const [wpmArray, setWpmArray] = useState<number[]>([]);
     const [errorCount, setErrorCount] = useState<number>(0);
+    const [alixWpm, setAlixWpm] = useState([]);
+    const [showLeaderboardSubmission, setShowLeaderboardSubmission] = useState<boolean>(true);
+    const [submitLeaderboardLoading, setSubmitLeaderboardLoading] = useState<boolean>(false);
+    const [profanityDetected, setProfanityDetected] = useState<boolean>(false);
+    const [leaderboard, setLeaderboard] = useState<LeadershipModel[]>([]);
+
+    const dbToPost = useMemo(() => (isBodyRace ? 'body-corpus' : 'corpus'), [isBodyRace]);
+
+    const colToPost = useMemo(
+        () => (isBodyRace ? `body-corpus-${corpusId}` : `corpus-${corpusId}`),
+        [isBodyRace]
+    );
 
     const inputRef = useRef<HTMLInputElement>(null);
+    const inputEl = useRef<HTMLInputElement>(null);
 
     const { theme } = useTheme();
     const router: NextRouter = useRouter();
@@ -42,12 +68,97 @@ const HomeBody = () => {
         return new Date().getTime();
     }, []);
 
+    const postLeaderboard = async () => {
+        let filter = new Filter();
+        if (filter.isProfane(inputEl.current.value)) {
+            setProfanityDetected(true);
+            return;
+        }
+
+        setSubmitLeaderboardLoading(true);
+        const newLeaderboard = leaderboard;
+        newLeaderboard.push({
+            adjusted_wpm: parseFloat(wpm),
+            user: inputEl.current.value,
+        });
+        newLeaderboard.sort((a, b) => {
+            if (a.adjusted_wpm > b.adjusted_wpm) {
+                return -1;
+            } else {
+                return 1;
+            }
+        });
+
+        const updateLeaderboard = httpsCallable(cloudFunctions, 'updateLeaderboard');
+        await updateLeaderboard({
+            dbToPost,
+            colToPost,
+            leaderboard: newLeaderboard.slice(0, 5),
+        });
+
+        setSubmitLeaderboardLoading(true);
+        setShowLeaderboardSubmission(false);
+    };
+
+    // Fetch corpus
+    useEffect(() => {
+        const fetchCorpus = async () => {
+            setLoading(true);
+
+            const docRef = doc(db, dbToPost, colToPost);
+            const docSnap = await getDoc(docRef);
+            if (docSnap.exists()) {
+                const words = docSnap.data().words;
+                setCorpus(words);
+                setCurrentChar(words.charAt(0));
+                setIncomingChars(words.substr(1));
+                setAlixWpm(docSnap.data().alix_wpm);
+            } else {
+                console.error('Error');
+            }
+            setLoading(false);
+        };
+
+        fetchCorpus();
+    }, [isBodyRace]);
+
+    // Snapshot the leaderboard
+    useEffect(() => {
+        const docRef = doc(db, dbToPost, colToPost);
+        return onSnapshot(docRef, (doc) => {
+            setLeaderboard(doc.data()?.leaderboard || []);
+            setLoading(false);
+        });
+    }, [db, isBodyRace]);
+
+    // Fetch corpus
+    useEffect(() => {
+        const fetchCorpus = async () => {
+            setLoading(true);
+
+            const docRef = doc(db, dbToPost, colToPost);
+            const docSnap = await getDoc(docRef);
+            if (docSnap.exists()) {
+                const words = docSnap.data().words;
+                setCorpus(words);
+                setCurrentChar(words.charAt(0));
+                setIncomingChars(words.substr(1));
+                setAlixWpm(docSnap.data().alix_wpm);
+            } else {
+                console.error('Error');
+            }
+            setLoading(false);
+        };
+
+        fetchCorpus();
+    }, [isBodyRace]);
+
     useEffect(() => {
         const timeoutId =
             seconds > 0 && startTime
                 ? setTimeout(() => {
                       setTime(seconds - 1);
-                      const durationInMinutes = (currentTime() - startTime) / 60000.0;
+                      const durationInMinutes = (currentTime() - startTime) / 6000.0;
                       const newWpm = Number((charCount / 5 / durationInMinutes).toFixed(2));
                       setWpm(newWpm);
                       const newWpmArray = wpmArray;
@@ -172,8 +283,21 @@ const HomeBody = () => {
     }, [router]);
 
     const resetState = useCallback(() => {
-        console.log('CLICKED');
-    }, []);
+        setLeftPadding(new Array(isSm ? 25 : 30).fill(' ').join(''));
+        setOutgoingChars('');
+        setCurrentChar(corpus.charAt(0));
+        setIncomingChars(corpus.substr(1));
+        setStartTime(0);
+        setWordCount(0);
+        setCharCount(0);
+        setWpm(0);
+        setTime(30);
+        setWpmArray([]);
+        setIncorrectChar(false);
+        setShowLeaderboardSubmission(true);
+        setSubmitLeaderboardLoading(false);
+        setProfanityDetected(false);
+    }, [corpus, isSm]);
 
     const handleTextClick = useCallback(() => {
         if (isSm && inputRef.current) {
@@ -263,6 +387,7 @@ const HomeBody = () => {
                         )}
 
                         <StartButton startTime={startTime} isBodyRace={isBodyRace} />
+
                         <span
                             className={'' + (startTime && 'cursor-pointer')}
                             onClick={() => resetState()}
@@ -285,6 +410,89 @@ const HomeBody = () => {
                                 />
                             </svg>
                         </span>
+
+                        {seconds === 0 && (
+                            <div className="font-mono px-4 sm:px-0">
+                                <div className="h-64">
+                                    <MyResponsiveLine
+                                        data={[
+                                            {
+                                                id: 'Alix',
+                                                color: 'hsl(359, 70%, 50%)',
+                                                data: alixWpm.map((e, i) => ({ x: i + 1, y: e })),
+                                            },
+                                            {
+                                                id: 'You',
+                                                data: wpmArray.map((e, i) => ({ x: i + 1, y: e })),
+                                            },
+                                        ]}
+                                        axisLeftName="WPM"
+                                        axisBottomName="time"
+                                        theme={theme}
+                                    />
+                                </div>
+                                <div className="flex justify-between">
+                                    <h3 className="you-text-decoration underline decoration-3">
+                                        Your WPM: {wpm}
+                                    </h3>
+                                    <h3 className="alix-text-decoration underline decoration-3">
+                                        Alix's WPM: {alixWpm[alixWpm.length - 1]}
+                                    </h3>
+                                </div>
+                                <div className="flex justify-between mb-8">
+                                    <h3 className="you-text-decoration underline decoration-3">
+                                        Your accuracy:{' '}
+                                        {((corpus.length - errorCount) / corpus.length).toFixed(2)}
+                                    </h3>
+                                    <h3 className="alix-text-decoration underline decoration-3">
+                                        Alix's accuracy: 1.00
+                                    </h3>
+                                </div>
+                                <div>
+                                    <h3>Leaderboard</h3>
+                                    {leaderboard.map((user, i) => {
+                                        return (
+                                            <h3 className="text-left" key={i}>
+                                                {i + 1}. {user.user}: {user.adjusted_wpm} WPM
+                                            </h3>
+                                        );
+                                    })}
+                                    {(wpm > leaderboard.at(-1).adjusted_wpm ||
+                                        leaderboard.length < 5) &&
+                                    showLeaderboardSubmission ? (
+                                        <div className="flex flex-col items-center">
+                                            <div className="mt-4 mb-2">
+                                                Enter your name to be put on the leaderboard
+                                            </div>
+                                            <input
+                                                className="width-5ch border border-black dark:border-white text-center mb-2"
+                                                ref={inputEl}
+                                                maxLength={4}
+                                            ></input>
+                                            {profanityDetected && (
+                                                <p className="text-red-500 dark:text-red-300">
+                                                    Profanity detected
+                                                </p>
+                                            )}
+                                            <button
+                                                className="mb-2"
+                                                onClick={() => postLeaderboard()}
+                                            >
+                                                Submit
+                                            </button>
+                                            {submitLeaderboardLoading && (
+                                                <Loader
+                                                    type="TailSpin"
+                                                    color={theme === 'dark' ? '#fff' : '#000'}
+                                                    height={16}
+                                                    width={16}
+                                                />
+                                            )}
+                                        </div>
+                                    ) : null}
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
             </>
@@ -295,28 +503,6 @@ const HomeBody = () => {
 export default function RaceMe() {
     return (
         <ThemeProvider>
-
-            <Script
-                src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"
-                crossOrigin="anonymous"
-            />
-            <Script
-                src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js"
-                crossOrigin="anonymous"
-            />
-            <Script
-                src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils_3d/control_utils_3d.js"
-                crossOrigin="anonymous"
-            />
-            <Script
-                src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"
-                crossOrigin="anonymous"
-            />
-            <Script
-                src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js"
-                crossOrigin="anonymous"
-            />
-            <Script src="https://cdn.plot.ly/plotly-2.20.0.min.js" />
             <HomeBody />
         </ThemeProvider>
     );
