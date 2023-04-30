@@ -19,10 +19,10 @@ const usePoseResultHandler = ({ videoElement, canvasElement, landmarkContainer, 
     const is_missing = useCallback(
         (part: NormalizedLandmark[]) => {
             return part.some((joint) => {
-                if (joint === undefined) {
-                    return false;
+                if (joint && joint.visibility) {
+                    return joint.visibility < VISIBILITY_THRESHOLD;
                 }
-                return joint!.visibility < VISIBILITY_THRESHOLD;
+                return false;
             });
         },
         [],
@@ -62,6 +62,10 @@ const usePoseResultHandler = ({ videoElement, canvasElement, landmarkContainer, 
         (results: Results, grid: LandmarkGrid, canvasContext: CanvasRenderingContext2D, semaphoreGestures: SemaphoreGestures) => {
             if (!results.poseLandmarks) {
                 grid.updateLandmarks([]);
+                return;
+            }
+
+            if (canvasElement === null) {
                 return;
             }
 

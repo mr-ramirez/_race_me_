@@ -2,7 +2,7 @@ import React, { FunctionComponent, useEffect, useRef, useState } from 'react';
 import usePoseResultHandler from '@/pages/race-me/components/body-race/use-pose-result-handler';
 
 type BodyRaceProps = {
-    setCurrBodyRaceChar: (value: string | null) => void;
+    setCurrBodyRaceChar: (value: string | undefined) => void;
 };
 
 const BodyRace: FunctionComponent<BodyRaceProps> = ({ setCurrBodyRaceChar }) => {
