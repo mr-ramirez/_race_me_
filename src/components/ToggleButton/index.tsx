@@ -1,4 +1,4 @@
-import { ReactNode, useCallback, useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useTheme } from "next-themes";
 
 const ToggleButton = (): JSX.Element => {

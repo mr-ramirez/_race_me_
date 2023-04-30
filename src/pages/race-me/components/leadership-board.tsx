@@ -1,10 +1,11 @@
 import React, { FunctionComponent, useMemo, useRef } from 'react';
-import MyResponsiveLine from '@/components/LineGraph';
 import Loader from 'react-loader-spinner';
+
+import MyResponsiveLine from '@/components/LineGraph';
 import { LeadershipModel } from '@/pages/race-me/models';
 
 type Props = {
-    alixWpm: number[];
+    alixWpm: string[];
     wpmArray: number[];
     theme: string | undefined;
     wpm: number;
@@ -13,7 +14,7 @@ type Props = {
     leaderboard: LeadershipModel[];
     showLeaderboardSubmission: boolean;
     profanityDetected: boolean;
-    postLeaderboard: () => void;
+    postLeaderboard: (inputEl: HTMLInputElement) => void;
     submitLeaderboardLoading: boolean;
 };
 
@@ -100,7 +101,7 @@ const LeadershipBoard: FunctionComponent<Props> = ({
                         {profanityDetected && (
                             <p className="text-red-500 dark:text-red-300">Profanity detected</p>
                         )}
-                        <button className="mb-2" onClick={() => postLeaderboard()}>
+                        <button className="mb-2" onClick={() => postLeaderboard(inputEl.current as HTMLInputElement)}>
                             Submit
                         </button>
                         {submitLeaderboardLoading && (

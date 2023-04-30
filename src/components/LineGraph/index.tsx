@@ -1,7 +1,6 @@
-// install (please make sure versions match peerDependencies)
-// yarn add @nivo/core @nivo/line
-import { ResponsiveLine, Serie } from '@nivo/line';
 import { FunctionComponent } from 'react';
+import { ResponsiveLine, Serie } from '@nivo/line';
+
 import ChartTooltip from '@/components/LineGraph/chart-tooltip';
 
 type Props = {
