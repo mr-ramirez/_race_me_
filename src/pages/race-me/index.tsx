@@ -53,14 +53,6 @@ const RaceMe: FunctionComponent = () => {
 
         setSubmitLeaderboardLoading(true);
 
-        // FIREBASE CODE
-        // const updateLeaderboard = httpsCallable(cloudFunctions, 'updateLeaderboard');
-        // await updateLeaderboard({
-        //     dbToPost,
-        //     colToPost,
-        //     leaderboard: newLeaderboard.slice(0, 5),
-        // });
-
         await updateLeaderboard(wpm, inputEl.value);
 
         setSubmitLeaderboardLoading(true);

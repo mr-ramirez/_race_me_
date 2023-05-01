@@ -40,7 +40,6 @@ const useDatabaseInfo = () => {
 
     const fetchData = useCallback(async (): Promise<void> => {
         const data = await Database.getInstance().getRecords(TABLE_NAME, COLUMN_NAMES);
-        console.log('CORPUS INFO', data);
 
         const [info] = data;
 
