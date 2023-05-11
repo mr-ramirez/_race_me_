@@ -25,7 +25,7 @@ const RaceMe: FunctionComponent<Props> = ({ userInfo }) => {
     const isSm = useIsSm();
 
     const [wpm, setWpm] = useState<number>(0);
-    const [seconds, setTime] = useState<number>(10);
+    const [seconds, setTime] = useState<number>(30);
 
     const [leftPadding, setLeftPadding] = useState(new Array(isSm ? 25 : 30).fill(' ').join('')); // initial 50 spaces to keep current char at center
     const [outgoingChars, setOutgoingChars] = useState<string>(''); // characters just typed
