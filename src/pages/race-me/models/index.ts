@@ -8,3 +8,13 @@ export type RaceMeGeneralModel = {
     alix_wpm: string[];
     leaderboard: LeadershipModel[];
 };
+
+export type LeaderboardModel = {
+    username: string;
+    scores: number[];
+};
+
+export type LeaderboardDatabaseModel = {
+    username: string;
+    scores: string;
+};

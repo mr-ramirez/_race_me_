@@ -10,12 +10,22 @@ import useKeyPress from '@/pages/race-me/hooks/use-key-press';
 import LeadershipBoard from '@/pages/race-me/components/leadership-board';
 import TypingBoard from '@/pages/race-me/components/typing-board';
 import UseDatabaseInfo from '@/pages/race-me/hooks/use-database-info';
+import { buildClerkProps, clerkClient, getAuth } from '@clerk/nextjs/server';
+import { GetServerSideProps } from 'next';
+import useLeaderboardDatabaseInfo from '@/pages/race-me/hooks/use-leaderboard-database-info';
 
-const RaceMe: FunctionComponent = () => {
+type Props = {
+    userInfo: {
+        id: string;
+        username: string;
+    };
+};
+
+const RaceMe: FunctionComponent<Props> = ({ userInfo }) => {
     const isSm = useIsSm();
 
     const [wpm, setWpm] = useState<number>(0);
-    const [seconds, setTime] = useState<number>(30);
+    const [seconds, setTime] = useState<number>(10);
 
     const [leftPadding, setLeftPadding] = useState(new Array(isSm ? 25 : 30).fill(' ').join('')); // initial 50 spaces to keep current char at center
     const [outgoingChars, setOutgoingChars] = useState<string>(''); // characters just typed
@@ -34,6 +44,7 @@ const RaceMe: FunctionComponent = () => {
     const [profanityDetected, setProfanityDetected] = useState<boolean>(false);
 
     const { words, alixWpm, leaderboard, loading, updateLeaderboard } = UseDatabaseInfo();
+    const { saveScore } = useLeaderboardDatabaseInfo({ username: userInfo.username });
 
     const dbToPost = 'corpus';
     const colToPost = `corpus-${corpusId}`;
@@ -59,29 +70,26 @@ const RaceMe: FunctionComponent = () => {
         setShowLeaderboardSubmission(false);
     };
 
-    useEffect(
-        () => {
-            if (words && words.trim() !== '') {
-                setCorpus(words);
-                setCurrentChar(words.charAt(0));
-                setIncomingChars(words.substr(1));
-            }
-        },
-        [words],
-    );
+    useEffect(() => {
+        if (words && words.trim() !== '') {
+            setCorpus(words);
+            setCurrentChar(words.charAt(0));
+            setIncomingChars(words.substr(1));
+        }
+    }, [words]);
 
     useEffect(() => {
         const timeoutId =
             seconds > 0 && startTime
                 ? setTimeout(() => {
-                    setTime(seconds - 1);
-                    const durationInMinutes = (currentTime() - startTime) / 60000.0;
-                    const newWpm = Number((charCount / 5 / durationInMinutes).toFixed(2));
-                    setWpm(newWpm);
-                    const newWpmArray = wpmArray;
-                    newWpmArray.push(newWpm);
-                    setWpmArray(newWpmArray);
-                }, 1000)
+                      setTime(seconds - 1);
+                      const durationInMinutes = (currentTime() - startTime) / 60000.0;
+                      const newWpm = Number((charCount / 5 / durationInMinutes).toFixed(2));
+                      setWpm(newWpm);
+                      const newWpmArray = wpmArray;
+                      newWpmArray.push(newWpm);
+                      setWpmArray(newWpmArray);
+                  }, 1000)
                 : undefined;
 
         return () => {
@@ -136,7 +144,7 @@ const RaceMe: FunctionComponent = () => {
 
     const tabIcon: string = useMemo(
         () => (theme === 'light' ? MountainIcon.src : VolcanoIcon.src),
-        [theme],
+        [theme]
     );
 
     const resetState = useCallback(() => {
@@ -231,7 +239,7 @@ const RaceMe: FunctionComponent = () => {
                                 corpus={corpus}
                                 errorCount={errorCount}
                                 leaderboard={leaderboard}
-                                postLeaderboard={postLeaderboard}
+                                postLeaderboard={saveScore}
                                 profanityDetected={profanityDetected}
                                 showLeaderboardSubmission={showLeaderboardSubmission}
                                 submitLeaderboardLoading={submitLeaderboardLoading}
@@ -243,6 +251,19 @@ const RaceMe: FunctionComponent = () => {
             </>
         </>
     );
+};
+
+export const getServerSideProps: GetServerSideProps = async (context) => {
+    const { userId } = getAuth(context.req);
+    const user = userId ? await clerkClient.users.getUser(userId) : undefined;
+    const {
+        __clerk_ssr_state: {
+            // @ts-ignore
+            user: userInfo,
+        },
+    } = buildClerkProps(context.req, { user });
+
+    return { props: { userInfo } };
 };
 
 export default RaceMe;
