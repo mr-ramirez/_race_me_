@@ -1,17 +1,15 @@
 import { useCallback, useMemo } from 'react';
-import { useTheme } from "next-themes";
+import { useTheme } from 'next-themes';
+import { UserButton } from '@clerk/nextjs';
 
 const ToggleButton = (): JSX.Element => {
     const { theme, setTheme } = useTheme();
 
-    const switchTheme = useCallback(
-        () => {
-            setTheme(theme === "dark" ? "light" : "dark");
-        },
-        [setTheme, theme],
-    );
+    const switchTheme = useCallback(() => {
+        setTheme(theme === 'dark' ? 'light' : 'dark');
+    }, [setTheme, theme]);
 
-    const themeClassName = useMemo(() => theme === "dark" ? "dark" : "", [theme]);
+    const themeClassName = useMemo(() => (theme === 'dark' ? 'dark' : ''), [theme]);
 
     const DarkIcon = useCallback(
         (): JSX.Element => (
@@ -30,7 +28,7 @@ const ToggleButton = (): JSX.Element => {
                 />
             </svg>
         ),
-        [],
+        []
     );
 
     const LightIcon = useCallback(
@@ -50,22 +48,26 @@ const ToggleButton = (): JSX.Element => {
                 />
             </svg>
         ),
-        [],
+        []
     );
 
     return (
-        <div
-            className={`${themeClassName} absolute top-4 right-4 z-10`}
-        >
-            <div className="dark:text-gray-200">
-        <span
-            onClick={switchTheme}
-            className="active:outline-none focus:outline-none cursor-pointer"
-        >
-            {theme === 'dark' ? <DarkIcon /> : <LightIcon />}
-        </span>
+        <>
+            <div className={`${themeClassName} absolute top-4 left-4 z-10`}>
+                <div className="dark:text-gray-200">
+                    <span
+                        onClick={switchTheme}
+                        className="active:outline-none focus:outline-none cursor-pointer"
+                    >
+                        {theme === 'dark' ? <DarkIcon /> : <LightIcon />}
+                    </span>
+                </div>
             </div>
-        </div>
+
+            <div className={`${themeClassName} absolute top-4 right-4 z-10`}>
+                <UserButton />
+            </div>
+        </>
     );
 };
 

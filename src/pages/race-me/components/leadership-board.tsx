@@ -1,4 +1,4 @@
-import React, { FunctionComponent, useMemo, useRef } from 'react';
+import React, { FunctionComponent, useCallback, useState } from 'react';
 import Loader from 'react-loader-spinner';
 
 import MyResponsiveLine from '@/components/LineGraph';
@@ -12,9 +12,7 @@ type Props = {
     corpus: string;
     errorCount: number;
     leaderboard: LeadershipModel[];
-    showLeaderboardSubmission: boolean;
-    profanityDetected: boolean;
-    postLeaderboard: (inputEl: HTMLInputElement) => void;
+    postLeaderboard: (score: number, callback: () => void) => Promise<void>;
     submitLeaderboardLoading: boolean;
 };
 
@@ -26,21 +24,17 @@ const LeadershipBoard: FunctionComponent<Props> = ({
     corpus,
     errorCount,
     leaderboard,
-    showLeaderboardSubmission,
-    profanityDetected,
     postLeaderboard,
     submitLeaderboardLoading,
 }) => {
-    const inputEl = useRef<HTMLInputElement>(null);
+    const [wasSaved, setWasSaved] = useState<boolean>(false);
 
-    const displayBoardSubmission = useMemo<boolean>(() => {
-        if (!leaderboard) return false;
-
-        return (
-            (wpm > leaderboard.at(-1).adjusted_wpm || leaderboard.length < 5) &&
-            showLeaderboardSubmission
-        );
-    }, [leaderboard, wpm, showLeaderboardSubmission]);
+    const afterSaveCallback = useCallback(
+        () => {
+            setWasSaved(true);
+        },
+        [setWasSaved],
+    );
 
     return (
         <div className="font-mono px-4 sm:px-0">
@@ -88,32 +82,26 @@ const LeadershipBoard: FunctionComponent<Props> = ({
                         </h3>
                     );
                 })}
-                {displayBoardSubmission ? (
-                    <div className="flex flex-col items-center">
-                        <div className="mt-4 mb-2">
-                            Enter your name to be put on the leaderboard
-                        </div>
-                        <input
-                            className="width-5ch border border-black dark:border-white text-center mb-2"
-                            ref={inputEl}
-                            maxLength={4}
-                        ></input>
-                        {profanityDetected && (
-                            <p className="text-red-500 dark:text-red-300">Profanity detected</p>
-                        )}
-                        <button className="mb-2" onClick={() => postLeaderboard(inputEl.current as HTMLInputElement)}>
+                <div className="flex flex-col items-center">
+                    {!wasSaved && (
+                        <button className="my-2" onClick={() => postLeaderboard(wpm, afterSaveCallback)}>
                             Submit
                         </button>
-                        {submitLeaderboardLoading && (
+                    )}
+
+                    {wasSaved && <span className="my-2">Your WPM was successfully saved!</span>}
+
+                    {submitLeaderboardLoading && (
+                        <div className={'my-3'}>
                             <Loader
                                 type="TailSpin"
                                 color={theme === 'dark' ? '#fff' : '#000'}
                                 height={16}
                                 width={16}
                             />
-                        )}
-                    </div>
-                ) : null}
+                        </div>
+                    )}
+                </div>
             </div>
         </div>
     );
