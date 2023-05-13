@@ -15,7 +15,9 @@ type UseLeaderboardDatabaseInfoParams = {
 };
 
 export type UseLeaderboardDatabaseInfo = {
-    saveScore: (value: number) => Promise<void>;
+    loading: boolean;
+    saveScore: (value: number, callback: () => void) => Promise<void>;
+    getLeaderboard: () => LeadershipModel[];
 };
 
 const useLeaderboardDatabaseInfo = ({
@@ -47,12 +49,14 @@ const useLeaderboardDatabaseInfo = ({
     }, [username, setLoading]);
 
     const saveNewRecord = useCallback(async (username: string, score: number): Promise<void> => {
+        setLoading(true);
         const newRecord: LeaderboardDatabaseModel = {
             username,
             scores: JSON.stringify([score]),
         };
 
         await Database.getInstance().createRecord(LEADERBOARD_TABLE_NAME, newRecord);
+        setLoading(false);
     }, []);
 
     const updateRecord = useCallback(
@@ -72,11 +76,11 @@ const useLeaderboardDatabaseInfo = ({
                 LEADERBOARD_WHERE_COLUMN_NAME
             );
         },
-        []
+        [username]
     );
 
     const saveScore = useCallback(
-        async (value: number): Promise<void> => {
+        async (value: number, callback: () => void): Promise<void> => {
             const preexistingRecord = leaderboard.find(
                 (item: LeaderboardModel) => item.username === username
             );
@@ -88,16 +92,35 @@ const useLeaderboardDatabaseInfo = ({
             }
 
             await fetchLeaderboard();
+            callback();
         },
         [leaderboard, username, saveNewRecord, updateRecord, fetchLeaderboard]
     );
 
+    const getLeaderboard = useCallback(() => {
+        const listToDisplay: LeadershipModel[] = [];
+
+        leaderboard.forEach((item: LeaderboardModel) => {
+            const maxValue = item.scores.reduce((a, b) => Math.max(a, b), -Infinity);
+
+            listToDisplay.push({
+                user: item.username,
+                adjusted_wpm: maxValue,
+            });
+        });
+
+        listToDisplay.sort((a, b) => (a.adjusted_wpm > b.adjusted_wpm ? 1 : -1));
+        return listToDisplay;
+    }, [leaderboard]);
+
     useEffect(() => {
         fetchLeaderboard();
-    }, [username]);
+    }, []);
 
     return {
+        loading,
         saveScore,
+        getLeaderboard,
     };
 };
 

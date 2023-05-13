@@ -1,7 +1,8 @@
 import React, { FunctionComponent, useCallback, useEffect, useMemo, useState } from 'react';
+import { GetServerSideProps } from 'next';
 import { useTheme } from 'next-themes';
 import Head from 'next/head';
-import Filter from 'bad-words';
+import { buildClerkProps, clerkClient, getAuth } from '@clerk/nextjs/server';
 
 import { MountainIcon, VolcanoIcon } from '@/assets/images';
 import ToggleButton from '@/components/ToggleButton';
@@ -10,8 +11,6 @@ import useKeyPress from '@/pages/race-me/hooks/use-key-press';
 import LeadershipBoard from '@/pages/race-me/components/leadership-board';
 import TypingBoard from '@/pages/race-me/components/typing-board';
 import UseDatabaseInfo from '@/pages/race-me/hooks/use-database-info';
-import { buildClerkProps, clerkClient, getAuth } from '@clerk/nextjs/server';
-import { GetServerSideProps } from 'next';
 import useLeaderboardDatabaseInfo from '@/pages/race-me/hooks/use-leaderboard-database-info';
 
 type Props = {
@@ -31,7 +30,6 @@ const RaceMe: FunctionComponent<Props> = ({ userInfo }) => {
     const [outgoingChars, setOutgoingChars] = useState<string>(''); // characters just typed
     const [incorrectChar, setIncorrectChar] = useState<boolean>(false);
     const [corpus, setCorpus] = useState<string>('');
-    const [corpusId, _setCorpusId] = useState(Math.floor(Math.random() * 3) + 1);
     const [currentChar, setCurrentChar] = useState<string>(corpus.charAt(0));
     const [incomingChars, setIncomingChars] = useState(corpus.substr(1)); // next chars to type
     const [startTime, setStartTime] = useState<number>(0);
@@ -39,36 +37,19 @@ const RaceMe: FunctionComponent<Props> = ({ userInfo }) => {
     const [charCount, setCharCount] = useState<number>(0);
     const [wpmArray, setWpmArray] = useState<number[]>([]);
     const [errorCount, setErrorCount] = useState<number>(0);
-    const [showLeaderboardSubmission, setShowLeaderboardSubmission] = useState<boolean>(true);
-    const [submitLeaderboardLoading, setSubmitLeaderboardLoading] = useState<boolean>(false);
-    const [profanityDetected, setProfanityDetected] = useState<boolean>(false);
 
-    const { words, alixWpm, leaderboard, loading, updateLeaderboard } = UseDatabaseInfo();
-    const { saveScore } = useLeaderboardDatabaseInfo({ username: userInfo.username });
+    const { words, alixWpm, loading: loadingCorpusData } = UseDatabaseInfo();
+    const { loading: loadingLeaderboardData, saveScore, getLeaderboard } = useLeaderboardDatabaseInfo({
+        username: userInfo.username,
+    });
 
-    const dbToPost = 'corpus';
-    const colToPost = `corpus-${corpusId}`;
+    const leaderboard = useMemo(() => getLeaderboard(), [getLeaderboard]);
 
     const { theme } = useTheme();
 
     const currentTime = useCallback(() => {
         return new Date().getTime();
     }, []);
-
-    const postLeaderboard = async (inputEl: HTMLInputElement) => {
-        let filter = new Filter();
-        if (inputEl && filter.isProfane(inputEl.value)) {
-            setProfanityDetected(true);
-            return;
-        }
-
-        setSubmitLeaderboardLoading(true);
-
-        await updateLeaderboard(wpm, inputEl.value);
-
-        setSubmitLeaderboardLoading(true);
-        setShowLeaderboardSubmission(false);
-    };
 
     useEffect(() => {
         if (words && words.trim() !== '') {
@@ -105,7 +86,7 @@ const RaceMe: FunctionComponent<Props> = ({ userInfo }) => {
             }
 
             // Don't register any keypresses after time is up
-            if (seconds === 0 || loading) {
+            if (seconds === 0 || loadingCorpusData || loadingLeaderboardData) {
                 return;
             }
 
@@ -159,9 +140,6 @@ const RaceMe: FunctionComponent<Props> = ({ userInfo }) => {
         setTime(30);
         setWpmArray([]);
         setIncorrectChar(false);
-        setShowLeaderboardSubmission(true);
-        setSubmitLeaderboardLoading(false);
-        setProfanityDetected(false);
     }, [corpus, isSm]);
 
     return (
@@ -180,7 +158,7 @@ const RaceMe: FunctionComponent<Props> = ({ userInfo }) => {
 
                         <h3 className="text-center sm:text-left">Time: {seconds}</h3>
 
-                        {loading ? (
+                        {loadingLeaderboardData || loadingCorpusData ? (
                             <p className="whitespace-pre width-race-me-text">
                                 {' '}
                                 <span className="text-gray-400">
@@ -240,9 +218,7 @@ const RaceMe: FunctionComponent<Props> = ({ userInfo }) => {
                                 errorCount={errorCount}
                                 leaderboard={leaderboard}
                                 postLeaderboard={saveScore}
-                                profanityDetected={profanityDetected}
-                                showLeaderboardSubmission={showLeaderboardSubmission}
-                                submitLeaderboardLoading={submitLeaderboardLoading}
+                                submitLeaderboardLoading={loadingLeaderboardData}
                                 theme={theme}
                             />
                         )}
