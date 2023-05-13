@@ -115,6 +115,12 @@ const useLeaderboardDatabaseInfo = ({
 
     useEffect(() => {
         fetchLeaderboard();
+
+        const intervalId = setInterval(() => fetchLeaderboard(), 300000);
+
+        return () => {
+            clearInterval(intervalId);
+        };
     }, []);
 
     return {
